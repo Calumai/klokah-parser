@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>Klokah 教材清單分析器</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 2em; }
+    textarea { width: 100%; height: 300px; margin-bottom: 1em; }
+    table { border-collapse: collapse; width: 100%; margin-top: 2em; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f5f5f5; }
+    .fetch-button { color: blue; cursor: pointer; text-decoration: underline; }
+    #content-container { display: none; margin-top: 2em; }
+  </style>
+</head>
+<body>
+  <h1>Klokah 教材清單分析器（貼上 HTML 原始碼版）</h1>
+
+  <p>1. 請前往 <code>https://web.klokah.tw/text/main.php?user=XXX</code> → 右鍵「檢視原始碼」</p>
+  <p>2. Ctrl+A 全選 → Ctrl+C 複製 → 貼到下方</p>
+  <p>3. 點擊「分析教材清單」</p>
+
+  <textarea id="htmlInput" placeholder="請貼上 HTML 原始碼..."></textarea>
+  <button onclick="analyzeHtml()">分析教材清單</button>
+
+  <div id="result-container"></div>
+
+  <div id="content-container">
+    <h2>教材內容</h2>
+    <table>
+      <thead>
+        <tr><th>族語</th><th>中文</th></tr>
+      </thead>
+      <tbody id="content-table-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    function analyzeHtml() {
+      const rawHtml = document.getElementById('htmlInput').value;
+      const $doc = $(new DOMParser().parseFromString(rawHtml, 'text/html'));
+      const $listLists = $doc.find('.list-list');
+
+      let resultHtml = '<table><thead><tr><th>data-list</th><th>語言名稱</th><th>教材標題</th><th>data-class</th><th>操作</th></tr></thead><tbody>';
+
+      $listLists.each(function () {
+        const $list = $(this);
+        const dataList = $list.find('button').data('list') || '';
+        const langName = $list.find('.list-name-sp').text().trim();
+        const $materials = $list.find('.class-name');
+
+        $materials.each(function (i) {
+          const $mat = $(this);
+          const classId = $mat.find('button').data('class');
+          const title = $mat.find('button').text().trim();
+
+          resultHtml += '<tr>';
+          if (i === 0) {
+            resultHtml += `<td rowspan="${$materials.length}">${dataList}</td>`;
+            resultHtml += `<td rowspan="${$materials.length}">${langName}</td>`;
+          }
+          resultHtml += `<td>${title}</td><td>${classId}</td>`;
+          resultHtml += `<td><a href="#" class="fetch-button" data-tid="${classId}">抓取</a></td>`;
+          resultHtml += '</tr>';
+        });
+      });
+
+      resultHtml += '</tbody></table>';
+      $('#result-container').html(resultHtml);
+      $('#content-container').hide();
+    }
+
+    $(document).on('click', '.fetch-button', function (e) {
+      e.preventDefault();
+      const tid = $(this).data('tid');
+      const url = 'https://web.klokah.tw/text/read.php?tid=' + tid;
+
+      $.ajax({
+        url,
+        dataType: 'html',
+        success: function (data) {
+          const $doc = $(data);
+          const $ab = $doc.find('.read-sentence.Ab');
+          const $ch = $doc.find('.read-sentence.Ch');
+          const $tbody = $('#content-table-body');
+          $tbody.empty();
+
+          $ab.each(function (i) {
+            const abWords = $(this).find('.word').map(function () {
+              return $(this).text().trim();
+            }).get().join(' ');
+            const chText = $ch.eq(i).text().trim();
+            $tbody.append(`<tr><td>${abWords}</td><td>${chText}</td></tr>`);
+          });
+
+          $('#content-container').show();
+        },
+        error: function () {
+          alert('無法讀取教材內容');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
