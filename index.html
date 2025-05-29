@@ -25,8 +25,6 @@
   <h1>Klokah 教材 + MP3 擷取工具</h1>
   <input type="text" id="main-url" placeholder="輸入 main.php 網址 (e.g. https://web.klokah.tw/text/main.php?user=wawasong)" style="width: 70%;">
   <button onclick="analyzeOnly()">📊 分析內容</button>
-  <button onclick="analyzeAndExtract()">🎧 分析並擷取 MP3</button>
-  <button onclick="downloadAllZip()">⬇️ 一鍵打包下載</button>
   <button onclick="location.reload()">🏠 回首頁</button>
   <input type="text" id="search" placeholder="搜尋句子..." style="width: 60%; margin-top: 10px;">
 
@@ -38,14 +36,6 @@
     let mp3Data = [];
 
     async function analyzeOnly() {
-      await renderTableOnly(false);
-    }
-
-    async function analyzeAndExtract() {
-      await renderTableOnly(true);
-    }
-
-    async function renderTableOnly(shouldExtractMp3) {
       const mainUrl = document.getElementById('main-url').value.trim();
       if (!mainUrl) return alert("請輸入 main.php 網址");
 
@@ -61,13 +51,6 @@
         let output = `<h2>${person}</h2>`;
         output += '<table><thead><tr><th>data-list</th><th>教材名稱</th><th>教材編號</th><th>操作</th></tr></thead><tbody>';
 
-        const progressContainer = document.getElementById("progress-container");
-        const progressBar = document.getElementById("progress-bar");
-        progressContainer.style.display = "block";
-        let totalItems = 0;
-        $lists.forEach(list => totalItems += list.querySelectorAll('.class-name').length);
-        let processed = 0;
-
         for (const list of $lists) {
           const dataList = list.querySelector('button')?.dataset.list;
           const listName = list.querySelector('.list-name-sp')?.textContent.trim();
@@ -82,12 +65,7 @@
               output += `<td rowspan="${items.length}">${dataList}</td>`;
               output += `<td rowspan="${items.length}">${listName}</td>`;
             }
-            output += `<td>${btnText}</td><td>${shouldExtractMp3 ? '⏳ 擷取中...' : '✅ 已分析'}</td></tr>`;
-            if (shouldExtractMp3) await fetchMp3Links(`https://web.klokah.tw/text/read.php?tid=${classData}`);
-            processed++;
-            const percent = Math.round((processed / totalItems) * 100);
-            progressBar.style.width = percent + "%";
-            progressBar.textContent = percent + "%";
+            output += `<td>${btnText}</td><td><button onclick=\"fetchMp3Links('https://web.klokah.tw/text/read.php?tid=${classData}')\">🎧 擷取 MP3</button></td></tr>`;
           }
         }
 
@@ -100,7 +78,7 @@
 
     async function fetchMp3Links(inputUrl) {
       if (!inputUrl) return;
-
+      mp3Data = []; // 重設
       const proxy = "https://api.allorigins.win/raw?url=";
       const url = proxy + encodeURIComponent(inputUrl);
 
@@ -116,6 +94,7 @@
         const zipLink = doc.querySelector("a[href*='downloadZip']")?.getAttribute("href");
 
         const result = document.getElementById('result');
+        result.innerHTML = "";
 
         if (zipLink) {
           const zipUrl = new URL(zipLink, inputUrl).href;
@@ -147,61 +126,6 @@
         console.error("MP3 擷取錯誤:", e);
       }
     }
-
-    function downloadAllZip() {
-      if (mp3Data.length === 0) return alert("請先擷取 MP3");
-
-      const zip = new JSZip();
-      const progressBar = document.getElementById("progress-bar");
-      const progressContainer = document.getElementById("progress-container");
-
-      progressContainer.style.display = "block";
-      progressBar.style.width = "0%";
-      progressBar.textContent = "0%";
-
-      let completed = 0;
-
-      const downloadPromises = mp3Data.map((data) =>
-        fetch(data.url)
-          .then(res => res.blob())
-          .then(blob => {
-            zip.file(data.filename, blob);
-            completed++;
-            const percent = Math.round((completed / mp3Data.length) * 100);
-            progressBar.style.width = percent + "%";
-            progressBar.textContent = percent + "%";
-          })
-      );
-
-      Promise.all(downloadPromises).then(() => {
-        zip.generateAsync({ type: 'blob' }).then(content => {
-          saveAs(content, "klokah_mp3s.zip");
-          progressBar.textContent = "完成";
-        });
-      });
-    }
-
-    document.getElementById('search').addEventListener('input', function() {
-      const keyword = this.value.trim();
-      const result = document.getElementById('result');
-      result.innerHTML = "";
-
-      const filtered = keyword === "" ? mp3Data : mp3Data.filter(d =>
-        d.ab.includes(keyword) || d.ch.includes(keyword)
-      );
-
-      filtered.forEach(({ ab, ch, url, filename }) => {
-        const block = document.createElement('div');
-        block.className = "block";
-        block.innerHTML = `
-          <p><strong>Ab:</strong> ${ab}</p>
-          <p><strong>Ch:</strong> ${ch}</p>
-          <audio controls src="${url}"></audio><br>
-          <a href="${url}" download="${filename}">⬇️ 下載音檔</a>
-        `;
-        result.appendChild(block);
-      });
-    });
   </script>
 </body>
 </html>
