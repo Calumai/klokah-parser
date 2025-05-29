@@ -7,20 +7,24 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; background: #f9f9f9; }
+    body { font-family: sans-serif; padding: 20px; background: #f0f4f8; color: #333; }
     input, button { padding: 8px; margin: 5px 0; }
-    #progress-container { display: none; margin-top: 10px; width: 100%; background-color: #eee; }
+    button { cursor: pointer; background: #0066cc; color: white; border: none; border-radius: 4px; }
+    button:hover { background: #004999; }
+    #progress-container { display: none; margin-top: 10px; width: 100%; background-color: #eee; border-radius: 4px; overflow: hidden; }
     #progress-bar { width: 0%; height: 20px; background-color: #4caf50; text-align: center; color: white; line-height: 20px; }
-    audio { display: block; margin-top: 5px; }
-    .block { background: white; padding: 10px; margin-bottom: 10px; border-radius: 6px; box-shadow: 0 0 4px rgba(0,0,0,0.1); }
-    table { border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 6px; }
+    audio { display: block; margin-top: 5px; width: 100%; }
+    .block { background: white; padding: 10px; margin-bottom: 10px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    th { background-color: #f3f3f3; }
+    h1, h2 { color: #005792; }
   </style>
 </head>
 <body>
   <h1>Klokah 教材 + MP3 擷取工具</h1>
   <input type="text" id="main-url" placeholder="輸入 main.php 網址 (e.g. https://web.klokah.tw/text/main.php?user=wawasong)" style="width: 70%;">
-  <button onclick="analyzeAll()">📊 分析內容</button>
+  <button onclick="analyzeAndExtract()">📊 分析內容</button>
   <button onclick="downloadAllZip()">⬇️ 一鍵打包下載</button>
   <button onclick="location.reload()">🏠 回首頁</button>
   <input type="text" id="search" placeholder="搜尋句子..." style="width: 60%; margin-top: 10px;">
@@ -32,26 +36,28 @@
   <script>
     let mp3Data = [];
 
-    async function analyzeAll() {
+    async function analyzeAndExtract() {
       const mainUrl = document.getElementById('main-url').value.trim();
       if (!mainUrl) return alert("請輸入 main.php 網址");
 
-      await analyzeMain(mainUrl);
-    }
-
-    async function analyzeMain(url) {
       const proxy = "https://api.allorigins.win/raw?url=";
       try {
-        const res = await fetch(proxy + encodeURIComponent(url));
+        const res = await fetch(proxy + encodeURIComponent(mainUrl));
         const html = await res.text();
         const doc = new DOMParser().parseFromString(html, 'text/html');
 
-        const $textBannerPerson = doc.querySelector('.text-banner-person');
-        const person = $textBannerPerson?.textContent.trim() || '';
+        const person = doc.querySelector('.text-banner-person')?.textContent.trim() || '';
         const $lists = Array.from(doc.querySelectorAll('.list-list'));
 
         let output = `<h2>${person}</h2>`;
         output += '<table><thead><tr><th>data-list</th><th>教材名稱</th><th>教材編號</th><th>操作</th></tr></thead><tbody>';
+
+        const progressContainer = document.getElementById("progress-container");
+        const progressBar = document.getElementById("progress-bar");
+        progressContainer.style.display = "block";
+        let totalItems = 0;
+        $lists.forEach(list => totalItems += list.querySelectorAll('.class-name').length);
+        let processed = 0;
 
         for (const list of $lists) {
           const dataList = list.querySelector('button')?.dataset.list;
@@ -67,7 +73,12 @@
               output += `<td rowspan="${items.length}">${dataList}</td>`;
               output += `<td rowspan="${items.length}">${listName}</td>`;
             }
-            output += `<td>${btnText}</td><td><a href="#" onclick="fetchMp3Links('https://web.klokah.tw/text/read.php?tid=${classData}')">擷取</a></td></tr>`;
+            output += `<td>${btnText}</td><td>⏳ 處理中...</td></tr>`;
+            await fetchMp3Links(`https://web.klokah.tw/text/read.php?tid=${classData}`);
+            processed++;
+            const percent = Math.round((processed / totalItems) * 100);
+            progressBar.style.width = percent + "%";
+            progressBar.textContent = percent + "%";
           }
         }
 
@@ -79,7 +90,7 @@
     }
 
     async function fetchMp3Links(inputUrl) {
-      if (!inputUrl) return alert("請提供 klokah 網址");
+      if (!inputUrl) return;
 
       const proxy = "https://api.allorigins.win/raw?url=";
       const url = proxy + encodeURIComponent(inputUrl);
@@ -95,9 +106,7 @@
         const sources = Array.from(doc.querySelectorAll('#audioSet audio source'));
         const zipLink = doc.querySelector("a[href*='downloadZip']")?.getAttribute("href");
 
-        mp3Data = [];
         const result = document.getElementById('result');
-        result.innerHTML = "";
 
         if (zipLink) {
           const zipUrl = new URL(zipLink, inputUrl).href;
@@ -126,7 +135,7 @@
           result.appendChild(block);
         });
       } catch (e) {
-        alert("❌ 擷取失敗，請確認網址正確且網頁可公開讀取。");
+        console.error("MP3 擷取錯誤:", e);
       }
     }
 
