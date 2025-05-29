@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>Klokah 語料分析工具</title>
+  <title>Klokah 教材 + MP3 擷取工具</title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -20,10 +20,7 @@
 <body>
   <h1>Klokah 教材 + MP3 擷取工具</h1>
   <input type="text" id="main-url" placeholder="輸入 main.php 網址 (e.g. https://web.klokah.tw/text/main.php?user=wawasong)" style="width: 70%;">
-  <button onclick="analyzeMain()">🔍 分析教材</button>
-  <hr>
-  <input type="text" id="url" placeholder="輸入 read.php 網址 (e.g. https://web.klokah.tw/text/read.php?tid=8030)" style="width: 70%;">
-  <button onclick="fetchMp3Links()">🎵 擷取 MP3</button>
+  <button onclick="analyzeAll()">📊 分析內容</button>
   <button onclick="downloadAllZip()">⬇️ 一鍵打包下載</button>
   <input type="text" id="search" placeholder="搜尋句子..." style="width: 60%; margin-top: 10px;">
 
@@ -34,10 +31,14 @@
   <script>
     let mp3Data = [];
 
-    async function analyzeMain() {
-      const url = document.getElementById('main-url').value.trim();
-      if (!url) return alert("請輸入 main.php 網址");
+    async function analyzeAll() {
+      const mainUrl = document.getElementById('main-url').value.trim();
+      if (!mainUrl) return alert("請輸入 main.php 網址");
 
+      await analyzeMain(mainUrl);
+    }
+
+    async function analyzeMain(url) {
       const proxy = "https://api.allorigins.win/raw?url=";
       try {
         const res = await fetch(proxy + encodeURIComponent(url));
@@ -51,22 +52,23 @@
         let output = `<h2>${person}</h2>`;
         output += '<table><thead><tr><th>data-list</th><th>教材名稱</th><th>教材編號</th><th>操作</th></tr></thead><tbody>';
 
-        $lists.forEach(list => {
+        for (const list of $lists) {
           const dataList = list.querySelector('button')?.dataset.list;
           const listName = list.querySelector('.list-name-sp')?.textContent.trim();
           const items = list.querySelectorAll('.class-name');
 
-          items.forEach((item, index) => {
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
             const classData = item.querySelector('button')?.dataset.class;
             const btnText = item.querySelector('button')?.textContent.trim();
             output += '<tr>';
-            if (index === 0) {
+            if (i === 0) {
               output += `<td rowspan="${items.length}">${dataList}</td>`;
               output += `<td rowspan="${items.length}">${listName}</td>`;
             }
-            output += `<td>${btnText}</td><td><a href="https://web.klokah.tw/text/read.php?tid=${classData}" target="_blank">打開</a></td></tr>`;
-          });
-        });
+            output += `<td>${btnText}</td><td><a href="#" onclick="fetchMp3Links('https://web.klokah.tw/text/read.php?tid=${classData}')">擷取</a></td></tr>`;
+          }
+        }
 
         output += '</tbody></table>';
         document.getElementById('table-result').innerHTML = output;
@@ -75,9 +77,8 @@
       }
     }
 
-    async function fetchMp3Links() {
-      const inputUrl = document.getElementById('url').value.trim();
-      if (!inputUrl) return alert("請輸入 klokah 網址");
+    async function fetchMp3Links(inputUrl) {
+      if (!inputUrl) return alert("請提供 klokah 網址");
 
       const proxy = "https://api.allorigins.win/raw?url=";
       const url = proxy + encodeURIComponent(inputUrl);
